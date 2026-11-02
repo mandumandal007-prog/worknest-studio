@@ -1,0 +1,41 @@
+name: Android APK
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build and test
+        run: chmod +x gradlew && ./gradlew --no-daemon test assembleDebug
+      - name: Copy APK into repository
+        if: github.ref == 'refs/heads/main'
+        run: cp app/build/outputs/apk/debug/app-debug.apk app-debug.apk
+      - name: Commit repository APK
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app-debug.apk
+          git commit -m 'Publish verified debug APK [skip ci]' || echo 'APK unchanged'
+          git push
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worknest-studio-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish release APK for version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Worknest Studio ${{ github.ref_name }}
+          generate_release_notes: true
+          files: app/build/outputs/apk/debug/app-debug.apk
